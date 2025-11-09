@@ -1,0 +1,9 @@
+name: emedgene
+channels:
+  - conda-forge
+dependencies:
+  - pandas
+  - pyinstaller
+  - openpyxl
+  - pillow
+  - pytest
