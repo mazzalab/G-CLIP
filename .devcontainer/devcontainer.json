@@ -1,0 +1,17 @@
+{
+  "name": "G-CLIP Dev",
+  "dockerFile": "Dockerfile",
+  "context": "..",
+    "remoteUser": "vscode",
+    "customizations": {
+      "vscode": {
+        "settings": {
+          "python.defaultInterpreterPath": "/opt/conda/envs/gclip/bin/python"
+        },
+        "extensions": [
+          "ms-python.python",
+          "ms-python.vscode-pylance"
+        ]
+      }
+    }
+}

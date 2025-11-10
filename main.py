@@ -16,7 +16,7 @@ from welcome_page import WelcomePage
 APP_VERSION = "1.0.0"
 W_WIDTH = 600
 W_HEIGHT = 480
-TITLE = f"G-CLIP – Gemelli Clinical Informatics Platform v{APP_VERSION}"
+TITLE = f"G-CLIP - Gemelli Clinical Informatics Platform v{APP_VERSION}"
 GITHUB_REPO = "https://github.com/mazzalab/G-CLIP"
 RELEASES_PAGE = f"{GITHUB_REPO}/releases"
 
