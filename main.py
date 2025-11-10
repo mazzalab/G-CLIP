@@ -4,8 +4,10 @@ from PIL import Image, ImageTk
 import os
 import sys
 import time
+import json
 import threading
 import urllib.request
+import webbrowser
 
 # import tools and components
 from tools.emedgene_csv_converter import CSVConverterPage
@@ -17,8 +19,8 @@ APP_VERSION = "1.0.0"
 W_WIDTH = 600
 W_HEIGHT = 480
 TITLE = f"G-CLIP - Gemelli Clinical Informatics Platform v{APP_VERSION}"
-GITHUB_REPO = "https://github.com/mazzalab/G-CLIP"
-RELEASES_PAGE = f"{GITHUB_REPO}/releases"
+GITHUB_REPO = "https://api.github.com/repos/mazzalab/G-CLIP/releases/latest"
+GITHUB_LATEST_RELEASE = "https://github.com/mazzalab/G-CLIP/releases/latest"
 
 
 # ---------------- RESOURCE PATH (PyInstaller Safe) ----------------
@@ -49,6 +51,54 @@ def update_hpo():
 
     except Exception as e:
         messagebox.showerror("Error", f"Failed to update HPO ontology:\n{e}")
+
+
+# ---------------- CHECK FOR NEW VERSION ----------------
+def check_for_updates():
+    try:
+        response = urllib.request.urlopen(GITHUB_REPO, timeout=3)
+        data = json.load(response)
+        latest = data.get("tag_name", "").replace("v", "")
+
+        if latest and latest != APP_VERSION:
+            messagebox.showinfo(
+                "Update Available",
+                f"A newer version ({latest}) of G-CLIP is available.\n"
+                f"Current version: {APP_VERSION}\n\n"
+                "Visit GitHub Releases page to download the update."
+            )
+    except Exception:
+        # Silent fail — no internet or GitHub unavailable
+        pass
+
+
+def manual_check_updates():
+    try:
+        response = urllib.request.urlopen(GITHUB_REPO, timeout=3)
+        data = json.load(response)
+        latest = data.get("tag_name", "").replace("v", "")
+
+        if latest and latest != APP_VERSION:
+            answer = messagebox.askyesno(
+                "Update Available",
+                f"A newer version ({latest}) of G-CLIP is available.\n"
+                f"Current version: {APP_VERSION}\n\n"
+                "Do you want to open the download page?"
+            )
+            if answer:
+                webbrowser.open(GITHUB_LATEST_RELEASE)
+        else:
+            messagebox.showinfo(
+                "Up to Date",
+                f"You already have the latest version ({APP_VERSION})."
+            )
+
+    except Exception:
+        messagebox.showerror(
+            "Update Check Failed",
+            "Unable to check for updates.\n"
+            "You might be offline or GitHub is unavailable."
+        )
 
 
 # ---------------- ABOUT WINDOW ----------------
@@ -138,6 +188,7 @@ def show_splash(root):
             time.sleep(2.5)
             splash.destroy()
             root.deiconify()
+            check_for_updates()
 
         threading.Thread(target=close_splash).start()
 
@@ -217,6 +268,7 @@ menu_bar.add_cascade(label="Tools", menu=tools_menu)
 
 # Help menu
 help_menu = Menu(menu_bar, tearoff=0)
+help_menu.add_command(label="Check for Updates", command=manual_check_updates)
 help_menu.add_command(label="Update HPO Ontology", command=update_hpo)
 help_menu.add_command(label="About", command=show_about)
 menu_bar.add_cascade(label="Help", menu=help_menu)
