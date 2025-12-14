@@ -126,8 +126,8 @@ class CSVConverterPage(tk.Frame):
             sample_id_col=sample_id_col
         )
 
-        # ✅ Insert the fixed first row: ["DATA", "", "", ...]
-        padding_row = ["[DATA]"] + [""] * (len(processed_df.columns) - 1)
+        # ✅ Insert the fixed first row: ["Data", "", "", ...]
+        padding_row = ["[Data]"] + [""] * (len(processed_df.columns) - 1)
 
         # Output folder
         input_folder = os.path.dirname(loaded_excel_path)
