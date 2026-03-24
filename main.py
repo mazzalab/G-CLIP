@@ -11,6 +11,7 @@ import webbrowser
 
 # import tools and components
 from tools.emedgene_csv_converter import CSVConverterPage
+from tools.generatefileRun import GeneratefileRun
 from welcome_page import WelcomePage
 
 
@@ -214,6 +215,21 @@ root.geometry(f"{W_WIDTH}x{W_HEIGHT}")
 root.resizable(False, False)
 center_window(root, W_WIDTH, W_HEIGHT)
 
+try:
+    icon_img = Image.open(logo_path)
+    icon_img = icon_img.resize((64, 64))
+    icon_photo = ImageTk.PhotoImage(icon_img)
+    root.iconphoto(True, icon_photo)
+    root._icon = icon_photo  # impedisce al garbage collector di eliminarla
+
+    if sys.platform == "win32":
+        ico_path = resource_path(os.path.join("assets", "bfx_logo.ico"))
+        if os.path.exists(ico_path):
+            root.iconbitmap(ico_path)
+except Exception as e:
+    print(f"Icona non caricata: {e}")
+
+
 # Show splash
 root.withdraw()
 show_splash(root)
@@ -239,6 +255,8 @@ def show_tool(name):
         if name not in tool_pages:
             if name == "csv":
                 tool_pages[name] = CSVConverterPage(container)
+            elif name == "FileRunWES":
+                 tool_pages[name] = GeneratefileRun(container)
             # Future tools:
             # elif name == "qc":
             #     tool_pages[name] = QCToolPage(container)
@@ -264,6 +282,8 @@ menu_bar = Menu(root)
 tools_menu = Menu(menu_bar, tearoff=0)
 tools_menu.add_command(
     label="Excel to Emedgene CSV Converter", command=lambda: show_tool("csv"))
+tools_menu.add_command(
+    label="Generate files Run WES", command=lambda: show_tool("FileRunWES"))
 menu_bar.add_cascade(label="Tools", menu=tools_menu)
 
 # Help menu
