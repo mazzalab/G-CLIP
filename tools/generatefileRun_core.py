@@ -25,8 +25,19 @@ def load_csv(self):
 
 
 def mapping_slims_emedgene(input_file,output_file,run_name):
+
     df = pd.read_excel(input_file, skiprows =2,dtype=str)
     print(df.head())
+
+    def build_lable(row):
+        prot=row["Protocol (rdrc_name)"]
+        if prot=="GEN&RARE":
+            return "1"
+        if prot=="Research_WES":
+            return "2"
+        if prot=="Research - Genesi":
+            return "3"
+        return ""
 
     def convert_sex(gender):
         if gender == "Male":
@@ -35,14 +46,32 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
             return "F"
         return ""
 
-    #emedgene = pd.DataFrame()
+    def HPOlist(HPO):
+        if pd.isna(HPO) or str(HPO).strip() == "":
+            return ""
+        hpo_terms = [term.strip() for term in str(HPO).split(",") if term.strip()]
+        return "; ".join(hpo_terms)
+
+
+
+    def identifica_analisi(row):
+        # Controlliamo se almeno uno dei due campi ha un valore valido
+        boost_presente = pd.notna(row['Boost Genes']) and str(row['Boost Genes']).strip() != ""
+        indication_presente = pd.notna(row['Indication']) and str(row['Indication']).strip() != ""
+        
+        if boost_presente or indication_presente:
+            return "Pannello in silico"
+        else:
+            return "Analisi Esoma Completo"
+        
+
     emedgene = pd.DataFrame(index=df.index)
-    emedgene["Family Id"] = "" #colonnaslims
+    emedgene["Family Id"] = df["Family Id"] 
     emedgene["Case Type"] = "Exome"
     emedgene["Files Names"] = "auto"
     emedgene["Sample Type"] = "FASTQ"
 
-    emedgene["BioSample Name"] = df["Sample Original ID"]#df["Id"] #df.apply(build_biosample, axis=1)
+    emedgene["BioSample Name"] = df["Id"] #df.apply(build_biosample, axis=1) #calcolare
 
     emedgene["Visualization Files"] = ""
     emedgene["Storage Provider Id"] = 774
@@ -52,16 +81,17 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["Sex"] = df["Gender"].apply(convert_sex)
 
     emedgene["Phenotypes"] = df["Phenotype"]
-    emedgene["Phenotypes Id"] = df["HPO"]
+
+    emedgene["Phenotypes Id"] = df["HPO"].apply(HPOlist)
 
     emedgene["Date Of Birth"] = df["Patient Date Of Birth"]
-    emedgene["Boost Genes"] = "" #ci sarà colonna slims
-    emedgene["Gene List Id"] = "" #ci sarà colonna slims
+    emedgene["Boost Genes"] = df["Boost Genes"] 
+    emedgene["Gene List Id"] = df["Indication"] 
     emedgene["Kit Id"] = 951 #cambierà nel tempo
     emedgene["Intersect Bed Id"] = 951 #cambierà nel tempo
 
     emedgene["Selected Preset"] = ""
-    emedgene["Label Id"] = "" #calcolare
+    emedgene["Label Id"] = df.apply(build_lable, axis=1)
     emedgene["Clinical Notes"] = ""
     emedgene["Due Date"] = ""
     emedgene["Opt In"] = ""
@@ -92,14 +122,14 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["Protocollo"] = df["Protocol (rdrc_name)"]
 
     emedgene["QuesitoDiagnostico"] = ""
-
-    emedgene["TipoDiAnalisi"] = "Analisi Esoma Completo"
+    emedgene["TipoDiAnalisi"] = df.apply(identifica_analisi, axis=1)
 
     emedgene["TipologiaCampione"] = df["Type (cntp_name)"] #"Sangue"
 
-    emedgene["UnitaOperativaRichiedente"] = "" #campoda creare su slims
+    emedgene["UnitaOperativaRichiedente"] = df["Requesting Unit"]
 
     emedgene["CodiceLaboratorio"] = 2348
+
 
     num_cols = len(emedgene.columns)
 
@@ -111,8 +141,6 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
 
     print("File generato:", output_file)
 
-import csv
-import pandas as pd
 
 
 def convertitore_samplesheet_WES(samplesheet: str, output_file: str, excel_file: str, run_name: str) -> list:
