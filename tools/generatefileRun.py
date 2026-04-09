@@ -3,7 +3,7 @@ from tkinter import filedialog, messagebox
 import threading
 import os
 
-from tools.generatefileRun_core import mapping_slims_emedgene, convertitore_samplesheet_WES
+from tools.generatefileRun_core import mapping_slims_emedgene, convertitore_samplesheet_WES,validate_excel_content
 
 
 class GeneratefileRun(tk.Frame):
@@ -135,6 +135,8 @@ class GeneratefileRun(tk.Frame):
         )
         self.warning_text.pack(fill="x")
 
+
+
     # ── Run name: estrai dal nome file ─────────────────────────────────────
     def _extract_run_name(self, filepath: str) -> str:
         basename = os.path.splitext(os.path.basename(filepath))[0]
@@ -191,11 +193,18 @@ class GeneratefileRun(tk.Frame):
         """Nasconde la warning box."""
         self.warning_frame.pack_forget()
 
+    
     # ── Validation ─────────────────────────────────────────────────────────
     def _validate_inputs(self):
         if not self.excel_path:
             messagebox.showwarning("Input mancante", "Carica il file Slims Extraction (.xlsx).")
             return False
+        #Controllo contenuto Excel (assicurarsi che abbia le colonne necessarie)
+        is_valid, error_message = validate_excel_content(self.excel_path)
+        if not is_valid:
+            messagebox.showerror("Errore Validazione Excel", error_message)
+            return False
+        
         if not self.csv_path:
             messagebox.showwarning("Input mancante", "Carica la SampleSheet (.csv).")
             return False

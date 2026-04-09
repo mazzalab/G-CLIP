@@ -24,6 +24,41 @@ def load_csv(self):
         messagebox.showerror("Error", f"Cannot load CSV:\n{e}")
 
 
+
+
+def validate_excel_content(file_path):
+    """
+    Controlla la presenza di colonne obbligatorie e campi vuoti.
+    Ritorna (True, None) se ok, o (False, "messaggio errore") se fallisce.
+    """
+    # Personalizza queste liste con i nomi reali delle tue colonne
+    REQUIRED_COLUMNS = ["Family Id","Relation (rdrc_name)","Gender","Phenotype","HPO","Patient Date Of Birth","Boost Genes","Indication","Accession Number","Id","Date Accessioned","Collection date","Ethnicity (rdrc_name)","Requesting Physicians Last Name","Requesting Physicians First Name","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)","Requesting Unit"] 
+    NON_EMPTY_COLUMNS = ["Family Id","HPO","Accession Number","Id","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)"]
+
+    #da valutare se possono rimanere vuote o se è meglio renderle obbligatorie:
+    #"Requesting Unit","Requesting Physicians Last Name","Requesting Physicians First Name","Ethnicity (rdrc_name)","Date Accessioned","Collection date","Gender","Patient Date Of Birth","Boost Genes","Indication","Relation (rdrc_name)","Phenotype",
+    try:
+        df = pd.read_excel(file_path, skiprows=2,dtype=str)  # Carica tutto come stringa per evitare problemi di formattazione
+        
+        # 1. Controllo Colonne Mancanti
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_cols:
+            msg = "Il file Excel non è conforme.\nColonne mancanti:\n" + "\n".join(f"• {c}" for c in missing_cols)
+            return False, msg
+
+        # 2. Controllo Campi Vuoti
+        cols_with_empty = [col for col in NON_EMPTY_COLUMNS if df[col].isnull().any()]
+        if cols_with_empty:
+            msg = "Il file contiene celle vuote in colonne con campi obbligatori:\n" + "\n".join(f"• {c}" for c in cols_with_empty)
+            return False, msg
+
+        return True, None
+
+    except Exception as e:
+        return False, f"Errore critico durante la lettura dell'Excel: {e}"
+
+
+
 def mapping_slims_emedgene(input_file,output_file,run_name):
 
     df = pd.read_excel(input_file, skiprows =2,dtype=str)
