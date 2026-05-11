@@ -31,12 +31,14 @@ def validate_excel_content(file_path):
     Controlla la presenza di colonne obbligatorie e campi vuoti.
     Ritorna (True, None) se ok, o (False, "messaggio errore") se fallisce.
     """
-    # Personalizza queste liste con i nomi reali delle tue colonne
-    REQUIRED_COLUMNS = ["Family Id","Relation (rdrc_name)","Gender","Phenotype","HPO","Patient Date Of Birth","Boost Genes","Indication","Accession Number","Id","Date Accessioned","Collection date","Ethnicity (rdrc_name)","Requesting Physicians Last Name","Requesting Physicians First Name","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)","Requesting Unit"] 
-    NON_EMPTY_COLUMNS = ["Family Id","HPO","Accession Number","Id","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)"]
+    
+    REQUIRED_COLUMNS = ["Family Id","Relation (rdrc_name)","Gender","Phenotype","HPO","Patient Date Of Birth","Boost Genes","Indication","Accession Number","Id","Date Accessioned","Collection date","Ethnicity (rdrc_name)","Requesting Physicians Last Name","Requesting Physicians First Name","Requesting Physicians User Name","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)","Requesting Unit"] 
+    NON_EMPTY_COLUMNS = ["Family Id","Accession Number","Id","Patient First Name","Patient Last Name","Type (cntp_name)","Gender"]
 
     #da valutare se possono rimanere vuote o se è meglio renderle obbligatorie:
-    #"Requesting Unit","Requesting Physicians Last Name","Requesting Physicians First Name","Ethnicity (rdrc_name)","Date Accessioned","Collection date","Gender","Patient Date Of Birth","Boost Genes","Indication","Relation (rdrc_name)","Phenotype",
+    #"HPO" puo essere vuoto se unfected il phenotype
+    #"Protocol (rdrc_name)" puo essere vuoto se non è specificato, puo essere compilato su emedgene
+    #"Requesting Unit","Requesting Physicians Last Name","Requesting Physicians First Name","Ethnicity (rdrc_name)","Date Accessioned","Collection date",,"Patient Date Of Birth","Boost Genes","Indication","Phenotype",
     try:
         df = pd.read_excel(file_path, skiprows=2,dtype=str)  # Carica tutto come stringa per evitare problemi di formattazione
         
@@ -99,6 +101,35 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
         else:
             return "Analisi Esoma Completo"
         
+    ###da modificare se cambia status su slims in inglese al momento cosi:
+    def convert_relation(relation):
+        #se il campo è Figlio o vuoto (NaN) lo consideriamo Proband, altrimenti traduciamo Madre/Padre
+        if relation == "Figlio" or pd.isna(relation) or str(relation).strip() == "":
+            return "proband"
+        if relation == "Madre":
+            return "mother"
+        if relation == "Padre":
+            return "father"
+        return ""
+
+    #per run gennaio - maggio dove è stato gia sequenziato campione con samplesheet _ nome e cognome:
+    def build_biosample(row):
+        #acc = str(row["Id"])
+        acc = str(row["Id"]).split("_")[0]
+        
+        last_names = str(row["Patient Last Name"]).split()
+        last_initials = "".join([name[0].upper() for name in last_names])
+        
+        first = str(row["Patient First Name"])
+        first_initial = first[0].upper()
+        
+        return f"{acc}_{last_initials}{first_initial}"
+    
+    #per run nuove:
+    # def build_biosample(row):
+        
+    #     acc = str(row["Id"]).split("_")[0]
+    #     return f"{acc}"
 
     emedgene = pd.DataFrame(index=df.index)
     emedgene["Family Id"] = df["Family Id"] 
@@ -106,13 +137,16 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["Files Names"] = "auto"
     emedgene["Sample Type"] = "FASTQ"
 
-    emedgene["BioSample Name"] = df["Id"] #df.apply(build_biosample, axis=1) #calcolare
+    #senza _DNA o _RNA, per uniformare con il sample sheet, altrimenti non riesce a trovare i file
+    #emedgene["BioSample Name"] = df["Id"] #df.apply(build_biosample, axis=1) #calcolare
+    emedgene["BioSample Name"]= df.apply(build_biosample, axis=1) #calcolare
 
     emedgene["Visualization Files"] = ""
     emedgene["Storage Provider Id"] = 774
     emedgene["Default Project"] = run_name
     emedgene["Execute Now"] = ""
-    emedgene["Relation"] = df["Relation (rdrc_name)"]
+    #emedgene["Relation"] = df["Relation (rdrc_name)"]
+    emedgene["Relation"] = df["Relation (rdrc_name)"].apply(convert_relation)
     emedgene["Sex"] = df["Gender"].apply(convert_sex)
 
     emedgene["Phenotypes"] = df["Phenotype"]
@@ -137,16 +171,17 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["DataRichiesta"] = df["Date Accessioned"]
     emedgene["DataRicezioneCampione"] = df["Collection date"]
 
-    emedgene["Etnia"] = df["Ethnicity (rdrc_name)"]
+    #emedgene["Etnia"] = df["Ethnicity (rdrc_name)"]
 
     emedgene["FaseAnalitica"] = ""#df["Technician"]
     emedgene["Firma1"] = ""
     emedgene["Firma2"] = ""
-    emedgene["MedicoRichiedente"] = (
-        df["Requesting Physicians Last Name"]
-        + " "
-        + df["Requesting Physicians First Name"]
-    )
+    # emedgene["MedicoRichiedente"] = (
+    #     df["Requesting Physicians Last Name"]
+    #     + " "
+    #     + df["Requesting Physicians First Name"]
+    # )
+    emedgene["MedicoRichiedente"] = df["Requesting Physicians User Name"]
 
     emedgene["Paziente"] = (
         df["Patient First Name"]
@@ -159,7 +194,7 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["QuesitoDiagnostico"] = ""
     emedgene["TipoDiAnalisi"] = df.apply(identifica_analisi, axis=1)
 
-    emedgene["TipologiaCampione"] = df["Type (cntp_name)"] #"Sangue"
+    emedgene["TipologiaCampione"] = "Blood" #df["Type (cntp_name)"] #"Sangue"
 
     emedgene["UnitaOperativaRichiedente"] = df["Requesting Unit"]
 
