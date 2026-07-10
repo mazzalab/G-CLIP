@@ -32,7 +32,7 @@ def validate_excel_content(file_path):
     Ritorna (True, None) se ok, o (False, "messaggio errore") se fallisce.
     """
     
-    REQUIRED_COLUMNS = ["Family Id","Relation (rdrc_name)","Gender","Phenotype","HPO","Patient Date Of Birth","Boost Genes","Indication","Accession Number","Id","Date Accessioned","Collection date","Ethnicity (rdrc_name)","Requesting Physicians Last Name","Requesting Physicians First Name","Requesting Physicians User Name","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)","Requesting Unit"] 
+    REQUIRED_COLUMNS = ["Family Id","Relation (rdrc_name)","Gender","Phenotype","HPO","Patient Date Of Birth","Accession Number","Id","Date Accessioned","Requesting Physicians User Name","Patient First Name","Patient Last Name","Protocol (rdrc_name)","Type (cntp_name)","Requesting Unit"] #"Boost Genes","Indication","Ethnicity (rdrc_name)"
     NON_EMPTY_COLUMNS = ["Family Id","Accession Number","Id","Patient First Name","Patient Last Name","Type (cntp_name)","Gender"]
 
     #da valutare se possono rimanere vuote o se è meglio renderle obbligatorie:
@@ -72,7 +72,7 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
             return "1"
         if prot=="Research_WES":
             return "2"
-        if prot=="Research - Genesi":
+        if prot=="Genesi":
             return "3"
         return ""
 
@@ -91,13 +91,15 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
 
 
 
-    def identifica_analisi(row):
+    def identifica_analisi(row, df):
         # Controlliamo se almeno uno dei due campi ha un valore valido
-        boost_presente = pd.notna(row['Boost Genes']) and str(row['Boost Genes']).strip() != ""
-        indication_presente = pd.notna(row['Indication']) and str(row['Indication']).strip() != ""
-        
-        if boost_presente or indication_presente:
-            return "Pannello in silico"
+        if "Boost Genes" in df.columns:
+            emedgene["Boost Genes"] = df["Boost Genes"] 
+            boost_presente = pd.notna(row['Boost Genes']) and str(row['Boost Genes']).strip() != ""
+            indication_presente = pd.notna(row['Indication']) and str(row['Indication']).strip() != ""
+            
+            if boost_presente or indication_presente:
+                return "Pannello in silico"
         else:
             return "Analisi Esoma Completo"
         
@@ -112,23 +114,28 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
             return "father"
         return ""
 
-    #per run gennaio - maggio dove è stato gia sequenziato campione con samplesheet _ nome e cognome:
+    #FUNZIONE Per COSTRUIRE BIOSAMPLE NAME QUANDO SS é STATO FATTO IN MANUEALE (altrimenti disattivarla e attivare quella sotto)
     def build_biosample(row):
-        #acc = str(row["Id"])
+        # acc = str(row["Id"])
+        # acc = str(row["Id"]).split("_")[0]
+        acc = str(row["Original Content (cntn_id)"]).split("_")[0]
         acc = str(row["Id"]).split("_")[0]
         
+        # Gestisce cognomi doppi/multipli
         last_names = str(row["Patient Last Name"]).split()
-        last_initials = "".join([name[0].upper() for name in last_names])
+        last_initials = "".join([name[0].upper() for name in last_names if name])
         
-        first = str(row["Patient First Name"])
-        first_initial = first[0].upper()
+        # Gestisce nomi doppi/multipli
+        first_names = str(row["Patient First Name"]).split()
+        first_initials = "".join([name[0].upper() for name in first_names if name])
         
-        return f"{acc}_{last_initials}{first_initial}"
+        return f"{acc}_{first_initials}{last_initials}"
     
-    #per run nuove:
+    # #ATTIVARE QUESTA FUNZIONE PER NUOVE RUN CON DEFINITIVO: lasciare derivata _DNA
     # def build_biosample(row):
-        
-    #     acc = str(row["Id"]).split("_")[0]
+    #     #acc = str(row["Id"])
+    #     acc = str(row["Id"])+"_DNA"
+    #     #acc = str(row["Id"]).split("_")[0] #attivare se non si vuole _DNA
     #     return f"{acc}"
 
     emedgene = pd.DataFrame(index=df.index)
@@ -145,17 +152,23 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["Storage Provider Id"] = 774
     emedgene["Default Project"] = run_name
     emedgene["Execute Now"] = ""
-    #emedgene["Relation"] = df["Relation (rdrc_name)"]
-    emedgene["Relation"] = df["Relation (rdrc_name)"].apply(convert_relation)
+    emedgene["Relation"] = df["Relation (rdrc_name)"]
+    #emedgene["Relation"] = df["Relation (rdrc_name)"].apply(convert_relation)
     emedgene["Sex"] = df["Gender"].apply(convert_sex)
 
     emedgene["Phenotypes"] = df["Phenotype"]
 
     emedgene["Phenotypes Id"] = df["HPO"].apply(HPOlist)
 
-    emedgene["Date Of Birth"] = df["Patient Date Of Birth"]
-    emedgene["Boost Genes"] = df["Boost Genes"] 
-    emedgene["Gene List Id"] = df["Indication"] 
+    emedgene["Date Of Birth"] = pd.to_datetime(df["Patient Date Of Birth"], dayfirst=True).dt.strftime('%Y-%m-%d')
+    if "Boost Genes" in df.columns:
+        emedgene["Boost Genes"] = df["Boost Genes"] 
+    else:
+        emedgene["Boost Genes"] = ""
+    if "Indication" in df.columns:
+        emedgene["Gene List Id"] = df["Indication"] 
+    else:
+        emedgene["Gene List Id"] = ""
     emedgene["Kit Id"] = 951 #cambierà nel tempo
     emedgene["Intersect Bed Id"] = 951 #cambierà nel tempo
 
@@ -169,7 +182,8 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["CodiceCampioneCI"] = df["Id"]
 
     emedgene["DataRichiesta"] = df["Date Accessioned"]
-    emedgene["DataRicezioneCampione"] = df["Collection date"]
+    #emedgene["DataRicezioneCampione"] = df["Collection date"]
+    emedgene["DataRicezioneCampione"] = df["Date Received"]
 
     #emedgene["Etnia"] = df["Ethnicity (rdrc_name)"]
 
@@ -192,7 +206,13 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
     emedgene["Protocollo"] = df["Protocol (rdrc_name)"]
 
     emedgene["QuesitoDiagnostico"] = ""
-    emedgene["TipoDiAnalisi"] = df.apply(identifica_analisi, axis=1)
+    #emedgene["TipoDiAnalisi"] = df.apply(identifica_analisi, axis=1)
+    if "Boost Genes" in df.columns:
+    # Applichiamo la funzione riga per riga solo se la colonna esiste
+        emedgene["TipoDiAnalisi"] = df.apply(identifica_analisi, axis=1, args=(df,))
+    else:
+        # Se la colonna non esiste, assegniamo direttamente il valore di default a tutti
+        emedgene["TipoDiAnalisi"] = "Analisi Esoma Completo"
 
     emedgene["TipologiaCampione"] = "Blood" #df["Type (cntp_name)"] #"Sangue"
 
@@ -241,8 +261,9 @@ def convertitore_samplesheet_WES(samplesheet: str, output_file: str, excel_file:
     # -------------------------
     df = pd.read_excel(excel_file, skiprows=2,dtype=str)
     # Normalizza anche gli ID dell'Excel rimuovendo eventuale suffisso dopo "_"
-    valid_ids = set(df["Sample Original ID"].astype(str).str.split("_").str[0])
-
+    #valid_ids = set(df["Sample Original ID"].astype(str).str.split("_").str[0])
+    valid_ids = set(df["Id"].astype(str).str.split("_").str[0])
+    #print(valid_ids)
     # -------------------------
     # LEGGI SAMPLE SHEET LIMS
     # -------------------------
