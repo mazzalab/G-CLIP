@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Menu, Toplevel, messagebox
+from tkinter import Menu, Toplevel, messagebox, simpledialog
 from PIL import Image, ImageTk
 import os
 import sys
@@ -12,16 +12,21 @@ import webbrowser
 # import tools and components
 from tools.emedgene_csv_converter import CSVConverterPage
 from tools.generatefileRun import GeneratefileRun
+from tools.samplesheet_converter import SampleSheetConverterPage
 from welcome_page import WelcomePage
 
 
 # ---------------- APP VERSION & RELEASES ----------------
 APP_VERSION = "1.0.1"
-W_WIDTH = 600
-W_HEIGHT = 480
+W_WIDTH = 760
+W_HEIGHT = 640
 TITLE = f"G-CLIP - Gemelli Clinical Informatics Platform v{APP_VERSION}"
 GITHUB_REPO = "https://api.github.com/repos/mazzalab/G-CLIP/releases/latest"
 GITHUB_LATEST_RELEASE = "https://github.com/mazzalab/G-CLIP/releases/latest"
+
+# ---------------- DEV-ONLY TOOLS (nascosti da menu/welcome page) ----------------
+# Sblocco con Ctrl+Shift+D + codice. Cambia questo valore per usare un codice tuo.
+DEV_UNLOCK_CODE = "1234"
 
 
 # ---------------- RESOURCE PATH (PyInstaller Safe) ----------------
@@ -234,6 +239,47 @@ except Exception as e:
 root.withdraw()
 show_splash(root)
 
+# ---------------- TOP BAR (Home navigation) ----------------
+HOME_BG = "#eef2ff"
+HOME_BG_HOVER = "#e0e7ff"
+HOME_BG_DISABLED = "#ffffff"
+HOME_FG = "#4f46e5"
+HOME_FG_DISABLED = "#c3c9d6"
+
+topbar = tk.Frame(root, bg="#ffffff", height=44)
+topbar.pack(side="top", fill="x")
+topbar.pack_propagate(False)
+
+home_btn = tk.Button(
+    topbar, text="🏠  Home", font=("Arial", 10, "bold"),
+    bg=HOME_BG, fg=HOME_FG,
+    activebackground=HOME_BG_HOVER, activeforeground=HOME_FG,
+    disabledforeground=HOME_FG_DISABLED,
+    relief="flat", bd=0, cursor="arrow",
+    padx=14, pady=6,
+    command=lambda: show_welcome()
+)
+home_btn.pack(side="left", padx=12, pady=7)
+
+
+def _home_btn_enter(event=None):
+    if home_btn["state"] != "disabled":
+        home_btn.config(bg=HOME_BG_HOVER)
+
+
+def _home_btn_leave(event=None):
+    if home_btn["state"] != "disabled":
+        home_btn.config(bg=HOME_BG)
+
+
+home_btn.bind("<Enter>", _home_btn_enter)
+home_btn.bind("<Leave>", _home_btn_leave)
+
+# Si parte sulla welcome page: il pulsante è disattivato finché non si apre un tool
+home_btn.config(state="disabled", bg=HOME_BG_DISABLED, cursor="arrow")
+
+tk.Frame(root, bg="#e2e8f0", height=1).pack(side="top", fill="x")
+
 # Workspace
 container = tk.Frame(root)
 container.pack(fill="both", expand=True)
@@ -241,7 +287,8 @@ container.pack(fill="both", expand=True)
 tool_pages = {}
 
 # Default page: welcome screen
-welcome_page = WelcomePage(container, logo_path)
+welcome_page = WelcomePage(
+    container, logo_path, on_select_tool=lambda name: show_tool(name))
 welcome_page.pack(fill="both", expand=True)
 
 
@@ -253,9 +300,12 @@ def show_tool(name):
 
         # create tool page if not created yet
         if name not in tool_pages:
-            if name == "csv":
-                tool_pages[name] = CSVConverterPage(container)
+            # if name == "csv":
+            #     tool_pages[name] = CSVConverterPage(container)
+            if name == "samplesheetConverter":
+                 tool_pages[name] = SampleSheetConverterPage(container)
             elif name == "FileRunWES":
+                 # Tool nascosto: accessibile solo tramite lo sblocco sviluppatore (Ctrl+Shift+D)
                  tool_pages[name] = GeneratefileRun(container)
             # Future tools:
             # elif name == "qc":
@@ -270,9 +320,40 @@ def show_tool(name):
         # show the requested tool
         tool_pages[name].pack(fill="both", expand=True)
 
+        # su un tool: il pulsante Home diventa attivo
+        home_btn.config(state="normal", bg=HOME_BG, cursor="hand2")
+
     except Exception as e:
         print("Error showing tool:", e)
         messagebox.showerror("Error", f"Could not load tool:\n{e}")
+
+
+def show_welcome():
+    """Hide any visible tool page and show the welcome screen."""
+    for t, page in tool_pages.items():
+        page.pack_forget()
+    welcome_page.pack(fill="both", expand=True)
+
+    # già sulla welcome page: il pulsante Home si disattiva
+    home_btn.config(state="disabled", bg=HOME_BG_DISABLED, cursor="arrow")
+
+
+# ---------------- DEV-ONLY TOOL UNLOCK ----------------
+def unlock_dev_tool(event=None):
+    """Sblocco nascosto: Ctrl+Shift+D chiede un codice e, se corretto,
+    apre il tool 'Generate files Run WES' (non presente in menu/welcome)."""
+    code = simpledialog.askstring(
+        "Accesso sviluppatore", "Codice:", show="*", parent=root
+    )
+    if code is None:
+        return
+    if code == DEV_UNLOCK_CODE:
+        show_tool("FileRunWES")
+    else:
+        messagebox.showerror("Accesso negato", "Codice non valido.")
+
+
+root.bind_all("<Control-Shift-D>", unlock_dev_tool)
 
 
 # ---------------- MENUBAR ----------------
@@ -280,10 +361,12 @@ menu_bar = Menu(root)
 
 # Tools menu
 tools_menu = Menu(menu_bar, tearoff=0)
+# tools_menu.add_command(
+#     label="Excel to Emedgene CSV Converter", command=lambda: show_tool("csv"))
+# tools_menu.add_command(
+#     label="Generate files Run WES", command=lambda: show_tool("FileRunWES"))
 tools_menu.add_command(
-    label="Excel to Emedgene CSV Converter", command=lambda: show_tool("csv"))
-tools_menu.add_command(
-    label="Generate files Run WES", command=lambda: show_tool("FileRunWES"))
+    label="Generate SampleSheet for BaseSpace", command=lambda: show_tool("samplesheetConverter"))
 menu_bar.add_cascade(label="Tools", menu=tools_menu)
 
 # Help menu
