@@ -9,9 +9,10 @@ pyinstaller --onefile --noconsole --name "G-CLIP"^
   main.py
 
 
+
 #MACOS
-pyinstaller --onefile --windowed --name "G-CLIP" \
-  --icon=assets/bfx_logo.icns \
+pyinstaller --onedir --windowed --noconfirm --name "G-CLIP" \
+  --icon=assets/bfx_logo.png \
   --add-data "assets/hp.obo:assets" \
   --add-data "assets/bfx_logo.png:assets" \
   --add-data "tools/*.py:tools" \
