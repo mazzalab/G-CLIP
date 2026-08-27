@@ -17,7 +17,7 @@ from welcome_page import WelcomePage
 
 
 # ---------------- APP VERSION & RELEASES ----------------
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 W_WIDTH = 760
 W_HEIGHT = 640
 TITLE = f"G-CLIP - Gemelli Clinical Informatics Platform v{APP_VERSION}"
