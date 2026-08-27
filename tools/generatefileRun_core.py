@@ -61,7 +61,9 @@ def validate_excel_content(file_path):
 
 
 
-def mapping_slims_emedgene(input_file,output_file,run_name):
+def mapping_slims_emedgene(input_file, output_file, run_name,
+                            biosample_mode="manuale", biosample_id_column="Id",
+                            biosample_suffix="iniziali"):
 
     df = pd.read_excel(input_file, skiprows =2,dtype=str)
     print(df.head())
@@ -114,29 +116,35 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
             return "father"
         return ""
 
-    #FUNZIONE Per COSTRUIRE BIOSAMPLE NAME QUANDO SS é STATO FATTO IN MANUEALE (altrimenti disattivarla e attivare quella sotto)
+    # BioSample Name: due modalità di costruzione, selezionabili da interfaccia
+    # tramite biosample_mode ("manuale" / "routine") e, se manuale,
+    # biosample_id_column ("Id" / "Original Content (cntn_id)") e
+    # biosample_suffix ("iniziali" / "dna" / "nessuno").
     def build_biosample(row):
-        # acc = str(row["Id"])
-        # acc = str(row["Id"]).split("_")[0]
-        acc = str(row["Original Content (cntn_id)"]).split("_")[0]
-        acc = str(row["Id"]).split("_")[0]
-        
+        if biosample_mode == "routine":
+            # ATTIVA PER NUOVE RUN CON DEFINITIVO: lascia derivata _DNA
+            acc = str(row["Id"])
+            return f"{acc}"
+
+        # Modalità manuale: SS fatto manualmente
+        acc = str(row[biosample_id_column]).split("_")[0]
+
+        if biosample_suffix == "dna":
+            return f"{acc}_DNA"
+
+        if biosample_suffix == "nessuno":
+            return f"{acc}"
+
+        # "iniziali" (default): iniziali nome/cognome paziente
         # Gestisce cognomi doppi/multipli
         last_names = str(row["Patient Last Name"]).split()
         last_initials = "".join([name[0].upper() for name in last_names if name])
-        
+
         # Gestisce nomi doppi/multipli
         first_names = str(row["Patient First Name"]).split()
         first_initials = "".join([name[0].upper() for name in first_names if name])
-        
+
         return f"{acc}_{first_initials}{last_initials}"
-    
-    # #ATTIVARE QUESTA FUNZIONE PER NUOVE RUN CON DEFINITIVO: lasciare derivata _DNA
-    # def build_biosample(row):
-    #     #acc = str(row["Id"])
-    #     acc = str(row["Id"])+"_DNA"
-    #     #acc = str(row["Id"]).split("_")[0] #attivare se non si vuole _DNA
-    #     return f"{acc}"
 
     emedgene = pd.DataFrame(index=df.index)
     emedgene["Family Id"] = df["Family Id"] 
@@ -233,42 +241,17 @@ def mapping_slims_emedgene(input_file,output_file,run_name):
 
 
 
-def convertitore_samplesheet_WES(samplesheet: str, output_file: str, excel_file: str, run_name: str) -> list:
+def check_samplesheet_samples(samplesheet: str, excel_file: str) -> list:
     """
-    Converte una SampleSheet LIMS nel formato richiesto per il run WES.
-
-    Parametri
-    ----------
-    samplesheet : str
-        Path del file CSV SampleSheet originale (LIMS).
-    output_file : str
-        Path del file CSV di output da generare.
-    excel_file : str
-        Path del file Excel Slims Extraction (.xlsx).
-    run_name : str
-        Nome della run da inserire nell'header del file di output.
-
-    Returns
-    -------
-    list
-        Lista di Sample_ID presenti nel SampleSheet ma non trovati
-        nell'Excel. Lista vuota se tutti i campioni sono presenti.
-        Il file di output viene generato in ogni caso.
+    Controlla che tutti i Sample_ID della SampleSheet LIMS siano presenti
+    nell'Excel Slims Extraction (colonna 'Id'). Non genera alcun file di
+    output: ritorna solo l'elenco dei campioni mancanti (lista vuota se
+    tutti i campioni sono presenti).
     """
-
-    # -------------------------
-    # CARICA EXCEL PAZIENTI
-    # -------------------------
-    df = pd.read_excel(excel_file, skiprows=2,dtype=str)
-    # Normalizza anche gli ID dell'Excel rimuovendo eventuale suffisso dopo "_"
-    #valid_ids = set(df["Sample Original ID"].astype(str).str.split("_").str[0])
+    df = pd.read_excel(excel_file, skiprows=2, dtype=str)
     valid_ids = set(df["Id"].astype(str).str.split("_").str[0])
-    #print(valid_ids)
-    # -------------------------
-    # LEGGI SAMPLE SHEET LIMS
-    # -------------------------
-    samples = []   # lista di (sample_id, index1, index2) — tutti i campioni validi
-    missing = []   # Sample_ID non trovati nell'Excel (warning, non bloccante)
+
+    missing = []
 
     with open(samplesheet, newline="") as f:
         # salta fino alla sezione [Data]
@@ -286,60 +269,119 @@ def convertitore_samplesheet_WES(samplesheet: str, output_file: str, excel_file:
             # Rimuove il suffisso dopo il primo "_" (es. "2025019512_DNA" → "2025019512")
             sample_id = raw_id.split("_")[0]
 
-            index1 = row["index"]
-            index2 = row["index2"]
-
-            # Aggiunge sempre il campione all'output
-            samples.append((sample_id, index1, index2))
-
-            # Controlla coerenza con Excel: registra il mancante ma non blocca
             if sample_id not in valid_ids:
                 missing.append(sample_id)
 
-    # -------------------------
-    # SCRIVI OUTPUT
-    # -------------------------
-    with open(output_file, "w", newline="") as out:
-        out.write(
-            f"[Header],\n"
-            f"FileFormatVersion,2\n"
-            f"RunName,{run_name}\n"
-            f"InstrumentPlatform,NovaSeq\n"
-            f"IndexOrientation,Forward\n"
-            f"AnalysisLocation,Cloud\n"
-            f"[Reads]\n"
-            f"Read1Cycles,151\n"
-            f"Read2Cycles,151\n"
-            f"Index1Cycles,10\n"
-            f"Index2Cycles,10\n"
-            f"[Sequencing_Settings]\n"
-            f"LibraryPrepKits,IlluminaDNAPrepwithExomev25Enrichment\n"
-            f"[BCLConvert_Settings]\n"
-            f"SoftwareVersion,4.3.13\n"
-            f"AdapterRead1,CTGTCTCTTATACACATCT\n"
-            f"AdapterRead2,CTGTCTCTTATACACATCT\n"
-            f"OverrideCycles,Y151;I10;I10;Y151\n"
-            f"FastqCompressionFormat,gzip\n"
-            f"[BCLConvert_Data]\n"
-            f"Sample_ID,Index,Index2\n"
-        )
-        for sample_id, i1, i2 in samples:
-            out.write(f"{sample_id},{i1},{i2}\n")
-
-        out.write(
-            f"\n"
-            f"[Cloud_Settings]\n"
-            f"GeneratedVersion,1.22.0\n"
-            f"Cloud_Workflow,ica_workflow_1\n"
-            f"[Cloud_Data]\n"
-            f"Sample_ID,ProjectName,LibraryName,LibraryPrepKitName,IndexAdapterKitName\n"
-        )
-        for sample_id, i1, i2 in samples:
-            library = f"{sample_id}_{i1}_{i2}"
-            out.write(
-                f"{sample_id},,{library},"
-                f"IlluminaDNAPrepwithExomev25Enrichment,"
-                f"IlluminaDNARNAUDISetBTagmentation\n"
-            )
-
     return missing
+
+
+# def convertitore_samplesheet_WES(samplesheet: str, output_file: str, excel_file: str, run_name: str) -> list:
+#     """
+#     Converte una SampleSheet LIMS nel formato richiesto per il run WES.
+
+#     Parametri
+#     ----------
+#     samplesheet : str
+#         Path del file CSV SampleSheet originale (LIMS).
+#     output_file : str
+#         Path del file CSV di output da generare.
+#     excel_file : str
+#         Path del file Excel Slims Extraction (.xlsx).
+#     run_name : str
+#         Nome della run da inserire nell'header del file di output.
+
+#     Returns
+#     -------
+#     list
+#         Lista di Sample_ID presenti nel SampleSheet ma non trovati
+#         nell'Excel. Lista vuota se tutti i campioni sono presenti.
+#         Il file di output viene generato in ogni caso.
+#     """
+
+#     # -------------------------
+#     # CARICA EXCEL PAZIENTI
+#     # -------------------------
+#     df = pd.read_excel(excel_file, skiprows=2,dtype=str)
+#     # Normalizza anche gli ID dell'Excel rimuovendo eventuale suffisso dopo "_"
+#     #valid_ids = set(df["Sample Original ID"].astype(str).str.split("_").str[0])
+#     valid_ids = set(df["Id"].astype(str).str.split("_").str[0])
+#     #print(valid_ids)
+#     # -------------------------
+#     # LEGGI SAMPLE SHEET LIMS
+#     # -------------------------
+#     samples = []   # lista di (sample_id, index1, index2) — tutti i campioni validi
+#     missing = []   # Sample_ID non trovati nell'Excel (warning, non bloccante)
+
+#     with open(samplesheet, newline="") as f:
+#         # salta fino alla sezione [Data]
+#         for line in f:
+#             if line.strip() == "[Data]":
+#                 break
+
+#         reader = csv.DictReader(f)
+#         for row in reader:
+#             raw_id = row["Sample_ID"]
+
+#             if raw_id.startswith("null"):
+#                 continue
+
+#             # Rimuove il suffisso dopo il primo "_" (es. "2025019512_DNA" → "2025019512")
+#             sample_id = raw_id.split("_")[0]
+
+#             index1 = row["index"]
+#             index2 = row["index2"]
+
+#             # Aggiunge sempre il campione all'output
+#             samples.append((sample_id, index1, index2))
+
+#             # Controlla coerenza con Excel: registra il mancante ma non blocca
+#             if sample_id not in valid_ids:
+#                 missing.append(sample_id)
+
+#     # -------------------------
+#     # SCRIVI OUTPUT
+#     # -------------------------
+#     with open(output_file, "w", newline="") as out:
+#         out.write(
+#             f"[Header],\n"
+#             f"FileFormatVersion,2\n"
+#             f"RunName,{run_name}\n"
+#             f"InstrumentPlatform,NovaSeq\n"
+#             f"IndexOrientation,Forward\n"
+#             f"AnalysisLocation,Cloud\n"
+#             f"[Reads]\n"
+#             f"Read1Cycles,151\n"
+#             f"Read2Cycles,151\n"
+#             f"Index1Cycles,10\n"
+#             f"Index2Cycles,10\n"
+#             f"[Sequencing_Settings]\n"
+#             f"LibraryPrepKits,IlluminaDNAPrepwithExomev25Enrichment\n"
+#             f"[BCLConvert_Settings]\n"
+#             f"SoftwareVersion,4.3.13\n"
+#             f"AdapterRead1,CTGTCTCTTATACACATCT\n"
+#             f"AdapterRead2,CTGTCTCTTATACACATCT\n"
+#             f"OverrideCycles,Y151;I10;I10;Y151\n"
+#             f"FastqCompressionFormat,gzip\n"
+#             f"[BCLConvert_Data]\n"
+#             f"Sample_ID,Index,Index2\n"
+#         )
+#         for sample_id, i1, i2 in samples:
+#             out.write(f"{sample_id},{i1},{i2}\n")
+
+#         out.write(
+#             f"\n"
+#             f"[Cloud_Settings]\n"
+#             f"GeneratedVersion,1.22.0\n"
+#             f"Cloud_Workflow,ica_workflow_1\n"
+#             f"[Cloud_Data]\n"
+#             f"Sample_ID,ProjectName,LibraryName,LibraryPrepKitName,IndexAdapterKitName\n"
+#         )
+#         for sample_id, i1, i2 in samples:
+#             library = f"{sample_id}_{i1}_{i2}"
+#             out.write(
+#                 f"{sample_id},,{library},"
+#                 f"IlluminaDNAPrepwithExomev25Enrichment,"
+#                 f"IlluminaDNARNAUDISetBTagmentation\n"
+#             )
+
+#     return missing

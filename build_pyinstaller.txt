@@ -1,8 +1,18 @@
 To compile:
 
+#WINDOWS
 pyinstaller --onefile --noconsole --name "G-CLIP"^
   --icon=assets/bfx_logo.ico ^
   --add-data "assets\hp.obo;assets" ^
   --add-data "assets\bfx_logo.png;assets" ^
   --add-data "tools\*.py;tools" ^
+  main.py
+
+
+#MACOS
+pyinstaller --onefile --windowed --name "G-CLIP" \
+  --icon=assets/bfx_logo.icns \
+  --add-data "assets/hp.obo:assets" \
+  --add-data "assets/bfx_logo.png:assets" \
+  --add-data "tools/*.py:tools" \
   main.py
