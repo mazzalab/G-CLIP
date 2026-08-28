@@ -250,33 +250,79 @@ topbar = tk.Frame(root, bg="#ffffff", height=44)
 topbar.pack(side="top", fill="x")
 topbar.pack_propagate(False)
 
-home_btn = tk.Button(
-    topbar, text="🏠  Home", font=("Arial", 10, "bold"),
-    bg=HOME_BG, fg=HOME_FG,
-    activebackground=HOME_BG_HOVER, activeforeground=HOME_FG,
-    disabledforeground=HOME_FG_DISABLED,
-    relief="flat", bd=0, cursor="arrow",
-    padx=14, pady=6,
-    command=lambda: show_welcome()
-)
+# Icona Home disegnata a mano su Canvas (nessuna emoji: resa identica su
+# Windows/macOS/Linux, non dipende dai glifi disponibili nel font di sistema).
+home_btn = tk.Frame(topbar, bg=HOME_BG_DISABLED, cursor="arrow")
 home_btn.pack(side="left", padx=12, pady=7)
+home_btn.enabled = False
+
+home_icon = tk.Canvas(
+    home_btn, width=18, height=16, bg=HOME_BG_DISABLED, highlightthickness=0
+)
+home_icon.pack(side="left", padx=(10, 6), pady=6)
+
+home_label = tk.Label(
+    home_btn, text="Home", font=("Arial", 11, "bold"),
+    bg=HOME_BG_DISABLED, fg=HOME_FG_DISABLED
+)
+home_label.pack(side="left", padx=(0, 12), pady=6)
+
+_home_btn_widgets = [home_btn, home_icon, home_label]
+
+
+def _draw_home_icon(fg, bg):
+    home_icon.delete("all")
+    # tetto
+    home_icon.create_polygon(2, 8, 9, 1, 16, 8, fill=fg, outline=fg, smooth=False)
+    # corpo casa
+    home_icon.create_rectangle(4, 8, 14, 15, fill=fg, outline=fg)
+    # porticina, "ritagliata" nel colore di sfondo per dare profondità
+    home_icon.create_rectangle(7.5, 10.5, 10.5, 15, fill=bg, outline=bg)
+
+
+def _set_home_visual(bg, fg):
+    for w in _home_btn_widgets:
+        w.config(bg=bg)
+    home_label.config(fg=fg)
+    _draw_home_icon(fg, bg)
 
 
 def _home_btn_enter(event=None):
-    if home_btn["state"] != "disabled":
-        home_btn.config(bg=HOME_BG_HOVER)
+    if home_btn.enabled:
+        _set_home_visual(HOME_BG_HOVER, HOME_FG)
 
 
 def _home_btn_leave(event=None):
-    if home_btn["state"] != "disabled":
-        home_btn.config(bg=HOME_BG)
+    if home_btn.enabled:
+        _set_home_visual(HOME_BG, HOME_FG)
 
 
-home_btn.bind("<Enter>", _home_btn_enter)
-home_btn.bind("<Leave>", _home_btn_leave)
+def _home_btn_click(event=None):
+    if home_btn.enabled:
+        show_welcome()
+
+
+def _enable_home_btn():
+    home_btn.enabled = True
+    for w in _home_btn_widgets:
+        w.config(cursor="hand2")
+    _set_home_visual(HOME_BG, HOME_FG)
+
+
+def _disable_home_btn():
+    home_btn.enabled = False
+    for w in _home_btn_widgets:
+        w.config(cursor="arrow")
+    _set_home_visual(HOME_BG_DISABLED, HOME_FG_DISABLED)
+
+
+for w in _home_btn_widgets:
+    w.bind("<Enter>", _home_btn_enter)
+    w.bind("<Leave>", _home_btn_leave)
+    w.bind("<Button-1>", _home_btn_click)
 
 # Si parte sulla welcome page: il pulsante è disattivato finché non si apre un tool
-home_btn.config(state="disabled", bg=HOME_BG_DISABLED, cursor="arrow")
+_disable_home_btn()
 
 tk.Frame(root, bg="#e2e8f0", height=1).pack(side="top", fill="x")
 
@@ -321,7 +367,7 @@ def show_tool(name):
         tool_pages[name].pack(fill="both", expand=True)
 
         # su un tool: il pulsante Home diventa attivo
-        home_btn.config(state="normal", bg=HOME_BG, cursor="hand2")
+        _enable_home_btn()
 
     except Exception as e:
         print("Error showing tool:", e)
@@ -335,7 +381,7 @@ def show_welcome():
     welcome_page.pack(fill="both", expand=True)
 
     # già sulla welcome page: il pulsante Home si disattiva
-    home_btn.config(state="disabled", bg=HOME_BG_DISABLED, cursor="arrow")
+    _disable_home_btn()
 
 
 # ---------------- DEV-ONLY TOOL UNLOCK ----------------

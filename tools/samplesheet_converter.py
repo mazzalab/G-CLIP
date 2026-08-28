@@ -37,8 +37,51 @@ class SampleSheetConverterPage(tk.Frame):
         self.excel_path = None
         self._last_dir = None  # ricorda l'ultima cartella usata
 
+        # ── Contenitore scorrevole (la pagina può superare l'altezza
+        # della finestra, es. quando compare il box degli avvisi) ────────
+        self._scroll_canvas = tk.Canvas(self, bg=BG, highlightthickness=0)
+        scrollbar = tk.Scrollbar(
+            self, orient="vertical", command=self._scroll_canvas.yview
+        )
+        self._scroll_canvas.configure(yscrollcommand=scrollbar.set)
+
+        self._scroll_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        content = tk.Frame(self._scroll_canvas, bg=BG)
+        content_window = self._scroll_canvas.create_window(
+            (0, 0), window=content, anchor="nw"
+        )
+
+        def _on_content_configure(event=None):
+            self._scroll_canvas.configure(
+                scrollregion=self._scroll_canvas.bbox("all")
+            )
+
+        def _on_canvas_configure(event):
+            self._scroll_canvas.itemconfig(content_window, width=event.width)
+
+        content.bind("<Configure>", _on_content_configure)
+        self._scroll_canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(event):
+            if self._scroll_canvas.tk.call("tk", "windowingsystem") == "aqua":
+                delta = int(-1 * event.delta)
+            else:
+                delta = int(-1 * (event.delta / 120))
+            self._scroll_canvas.yview_scroll(delta, "units")
+
+        def _bind_mousewheel(event=None):
+            self._scroll_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbind_mousewheel(event=None):
+            self._scroll_canvas.unbind_all("<MouseWheel>")
+
+        self._scroll_canvas.bind("<Enter>", _bind_mousewheel)
+        self._scroll_canvas.bind("<Leave>", _unbind_mousewheel)
+
         # ── Header ─────────────────────────────────────────────────────────
-        header = tk.Frame(self, bg=BG)
+        header = tk.Frame(content, bg=BG)
         header.pack(fill="x", padx=28, pady=(24, 4))
 
         tk.Label(
@@ -57,7 +100,7 @@ class SampleSheetConverterPage(tk.Frame):
         ])
 
         # ── Card: file input ──────────────────────────────────────────────
-        card = self._card(self, "FILE DI INPUT")
+        card = self._card(content, "FILE DI INPUT")
 
         self.drop_zone = tk.Frame(
             card, bg=ZONE_BG, highlightbackground=BORDER,
@@ -99,7 +142,7 @@ class SampleSheetConverterPage(tk.Frame):
             w.bind("<Leave>", self._on_zone_leave)
 
         # ── Card: options ────────────────────────────────────────────────
-        opts_card = self._card(self, "OPZIONI")
+        opts_card = self._card(content, "OPZIONI")
 
         tk.Label(
             opts_card, text="Project", font=(FONT, 11, "bold"),
@@ -122,7 +165,7 @@ class SampleSheetConverterPage(tk.Frame):
         ).pack(anchor="w", pady=(5, 0))
 
         # ── Convert button ───────────────────────────────────────────────
-        btn_wrap = tk.Frame(self, bg=BG)
+        btn_wrap = tk.Frame(content, bg=BG)
         btn_wrap.pack(fill="x", padx=28, pady=(18, 6))
 
         self.convert_btn = tk.Button(
@@ -140,7 +183,7 @@ class SampleSheetConverterPage(tk.Frame):
         self.convert_btn.bind("<Leave>", self._on_btn_leave)
 
         # ── Status pill ──────────────────────────────────────────────────
-        status_row = tk.Frame(self, bg=BG)
+        status_row = tk.Frame(content, bg=BG)
         status_row.pack(pady=(2, 20))
 
         self.status_dot = tk.Canvas(
@@ -159,7 +202,7 @@ class SampleSheetConverterPage(tk.Frame):
         # ── Warning box: campioni senza Well Position ──────────────────────
         # non viene "packata" subito: appare solo dopo la conversione, se serve
         self.warning_card = tk.Frame(
-            self, bg="#fff8f0", highlightbackground="#f0b429", highlightthickness=1
+            content, bg="#fff8f0", highlightbackground="#f0b429", highlightthickness=1
         )
 
         warn_inner = tk.Frame(self.warning_card, bg="#fff8f0")
